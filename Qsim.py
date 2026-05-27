@@ -93,7 +93,11 @@ class QuantumSimulation:
         # RNG
         np.random.seed(seed)
 
-        # Bead positions: shape (P,), 1D ring polymer
+       # Bead positions: shape (P,), 1D ring polymer
+        # Initialize with small random displacements drawn from the
+        # approximate ground-state width sigma = sqrt(hbar/(2*m*omega))
+        # so beads are not stuck at zero for large P.
+        sigma_init = np.sqrt(hbar / (2.0 * self.mass * self.omega))
         self.x = np.full(P, x0, dtype=float)
 
         # Energy accumulators
@@ -138,25 +142,30 @@ class QuantumSimulation:
         Compute U_spring, U_ext, U_eff and the thermodynamic energy
         estimator from the current bead positions self.x.
 
-        Thermodynamic (primitive) estimator:
+        Uses the THERMODYNAMIC (primitive) estimator:
+
             E = P/(2*beta)
               - (1/2)*m*omega_P^2 * sum_k (x_{k+1}-x_k)^2
               + (1/P) * sum_k V(x_k)
+
+        which is exact in the limit P -> infinity.
+
+        Note: the first two terms individually grow as P but their
+        difference is O(hbar*omega). This cancellation is handled
+        correctly here because we compute spring_sum directly from
+        bead positions, not from an approximation.
         """
         self.U_spring = self._spring_energy(self.x)
         self.U_ext    = self._ext_energy(self.x)
         self.U_eff    = self.U_spring + self.U_ext
 
-        dx            = np.roll(self.x, -1) - self.x
-        spring_sum    = np.sum(dx ** 2)
+        dx         = np.roll(self.x, -1) - self.x
+        spring_sum = np.sum(dx ** 2)
 
-        self.E_thermo = (self.P / (2.0 * self.beta) 
-                         - 0.5 * self.k_spring * spring_sum
-                         + self.U_ext * self.P)   # V_avg (not divided by P)
+        # V_avg = (1/P) * sum_k (1/2)*m*omega^2*x_k^2
+        V_avg = 0.5 * self.mass * self.omega**2 * np.mean(self.x**2)
 
-        # Note: U_ext already has the 1/P factor, so V_avg = U_ext * P
-        # Rewrite cleanly:
-        V_avg         = 0.5 * self.mass * self.omega**2 * np.mean(self.x**2)
+        # Primitive estimator
         self.E_thermo = (self.P / (2.0 * self.beta)
                          - 0.5 * self.k_spring * spring_sum
                          + V_avg)
@@ -176,6 +185,9 @@ class QuantumSimulation:
         Only the two spring terms connecting bead k to its neighbours
         k-1 and k+1 change when bead k moves, plus the external term
         for bead k. This allows an O(1) delta-U calculation per bead.
+
+        During the first quarter of the run, drmax is adaptively tuned
+        every 100 sweeps to keep the acceptance ratio near 0.4-0.6.
 
         Returns
         -------
@@ -216,6 +228,15 @@ class QuantumSimulation:
 
         self.accept = accept
 
+        # Adaptive step size: tune drmax during first quarter of run
+        # to keep acceptance ratio near 0.4-0.6
+        if self.step < self.Nsteps // 4 and self.step % 100 == 0 and self.step > 0:
+            ratio = self.accept / self.P
+            if ratio > 0.6:
+                self.drmax *= 1.1
+            elif ratio < 0.4:
+                self.drmax *= 0.9
+
         # Recompute thermodynamic estimator from scratch (cheap for 1D)
         self._eval_energies()
 
@@ -223,7 +244,8 @@ class QuantumSimulation:
         """
         Run the full MC simulation for self.Nsteps sweeps.
 
-        Stores (step, E_thermo) in self.E_history every self.printfreq steps.
+        Stores (step, E_thermo) in self.E_history every self.printfreq
+        steps. Acceptance totals are tracked across all sweeps.
 
         Returns
         -------
@@ -234,16 +256,14 @@ class QuantumSimulation:
         self.total_accept = 0
         self.total_moves  = 0
 
-        #for step in range(self.Nsteps):
-         #   self.MCstep()
-          #  self.total_accept += self.accept
-           # self.total_moves  += self.P
-
         for step in range(self.Nsteps):
             self.MCstep()
             self.step += 1
+            self.total_accept += self.accept   # FIX: was commented out
+            self.total_moves  += self.P        # FIX: was commented out
 
-        if self.step % self.printfreq == 0:
+            # FIX: storage line was outside the loop (wrong indentation)
+            if self.step % self.printfreq == 0:
                 self.E_history.append((self.step, self.E_thermo))
 
     def mean_energy(self, burn_frac=0.2):

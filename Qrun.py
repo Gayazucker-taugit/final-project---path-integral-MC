@@ -14,9 +14,6 @@ Produces the following figures:
   Fig 3 - Bead convergence at the lowest temperature (highest beta)
   Fig 4 - Bead positions (ring polymer snapshot) at selected beta values
 
-Usage
------
-    python run_quantum.py
 """
 
 import numpy as np
@@ -52,10 +49,10 @@ bhw_list  = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])  # beta * hbar * omega
 beta_list = bhw_list / hw_J
 T_list    = 1.0 / (k_B * beta_list)
 
-Nsteps     = 5000       # TODO: change back to 50000 for production
-burn_frac  = 0.20       # discard first 20 % as equilibration
+Nsteps     = 50000       # TODO: change back to 50000 for production
+burn_frac  = 0.30       # discard first 30 % as equilibration
 printfreq  = 100        # store energy every printfreq steps
-N_indep    = 2          # TODO: change back to 5 for production
+N_indep    = 5          # TODO: change back to 5 for production
 P_per_unit = 20         # beads per unit of beta*hbar*omega
 drmax_m    = 0.5e-10    # initial step size (m) - 0.5 Angstrom
 x0_m       = 0.0        # initial bead positions
@@ -74,28 +71,34 @@ def run_temperature(temp, P, Nsteps, drmax, burn_frac, N_indep, base_seed=937142
     for i in range(N_indep):
         seed = base_seed + i * 1000   # different seed for each run
 
+        # Scale initial drmax with P: stiffer springs need smaller steps
+        drmax_scaled = drmax / np.sqrt(P)
+
+        # Large P rings need more steps to equilibrate from x0=0
+        Nsteps_scaled = max(Nsteps, int(Nsteps * P / 20))
+
         sim = QuantumSimulation(
             mass      = m_Ar,
             omega     = omega,
             temp      = temp,
             P         = P,
-            Nsteps    = Nsteps,
-            drmax     = drmax,
+            Nsteps    = Nsteps_scaled,
+            drmax     = drmax_scaled,
             seed      = seed,
             printfreq = printfreq,
             x0        = x0_m,
         )
 
         sim.run()
-        mean_E, _ = sim.mean_energy(burn_frac=burn_frac)
-        mean_Es.append(mean_E)
-       # sim.run()
-        # --- print acceptance ratio (accurate) ---
-       # acceptance_ratio = sim.total_accept / sim.total_moves
-        #print(f"    acceptance ratio = {acceptance_ratio:.3f}")
 
-        #mean_E, _ = sim.mean_energy(burn_frac=burn_frac)
-        #mean_Es.append(mean_E)
+        # --- print acceptance ratio (accurate) ---
+        acceptance_ratio = sim.total_accept / sim.total_moves
+        print(f"    run {i+1}: acceptance ratio = {acceptance_ratio:.3f}")
+
+        # Larger P needs longer equilibration - scale burn fraction with P
+        burn_frac_scaled = min(0.5, burn_frac * np.sqrt(P / 20))
+        mean_E, _ = sim.mean_energy(burn_frac=burn_frac_scaled)
+        mean_Es.append(mean_E)
 
     return np.array(mean_Es)
 
@@ -259,13 +262,20 @@ T_low       = T_list[-1]
 beta_low    = beta_list[-1]
 E_exact_low = analytical_energy(beta_low, omega)
 
-# Range of P values to test around the recommended value
+# Range of P values to test around the recommended value.
+# FIX: guard each term with max(4, ...) so we never pass P < 4,
+# even when P_ref is small and integer division produces 0 or 1.
 P_ref  = choose_P(beta_low, omega, P_per_unit)
-P_vals = np.unique(np.clip(
-    [4, P_ref // 8, P_ref // 4, P_ref // 2, P_ref, int(1.5 * P_ref), 2 * P_ref],
-    4, 4 * P_ref
-))
-P_vals = sorted(P_vals)
+P_vals = sorted(set([
+    4,
+    8,
+    12,
+    max(4, P_ref // 4),
+    max(4, P_ref // 2),
+    P_ref,
+    int(1.5 * P_ref),
+    2 * P_ref,
+]))
 
 print(f"\nReference P = {P_ref}, testing P = {P_vals}\n")
 
@@ -339,7 +349,7 @@ for ax, bhw, col in zip(axes, snapshot_bhw, colors):
         temp      = T_snap,
         P         = P_snap,
         Nsteps    = Nsteps,
-        drmax     = drmax_m,
+        drmax     = drmax_m / np.sqrt(P_snap),
         seed      = 42,
         printfreq = printfreq,
         x0        = x0_m,
