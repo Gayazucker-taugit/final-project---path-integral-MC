@@ -1,21 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-run_quantum.py
---------------
-Driver script for the quantum path-integral MC simulation of a single
-Ar atom in a one-dimensional harmonic trap.
-
-Produces the following figures:
-
-  Fig 1 - Mean energy vs beta*hbar*omega: PIMC vs analytical vs classical
-  Fig 2 - Mean energy vs temperature
-  Fig 3 - Bead convergence at the lowest temperature (highest beta)
-  Fig 4 - Bead positions (ring polymer snapshot) at selected beta values
-
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.constants import hbar, Boltzmann as k_B, atomic_mass, e as e_charge
@@ -42,7 +27,7 @@ print(f"Crossover temperature  = {hw_J/k_B:.1f} K\n")
 # Simulation settings
 # ============================================================
 
-# Dimensionless beta values specified in the assignment
+# Dimensionless beta values 
 bhw_list  = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])  # beta * hbar * omega
 
 # Convert to physical beta (J^-1) and temperature (K)
@@ -69,9 +54,9 @@ def run_temperature(temp, P, Nsteps, drmax, burn_frac, N_indep, base_seed=937142
     mean_Es = []
 
     for i in range(N_indep):
-        seed = base_seed + i * 1000   # different seed for each run
+        seed = base_seed + i * 1000   
 
-        # Scale initial drmax with P: stiffer springs need smaller steps
+        # Scale initial drmax with P (stiffer springs need smaller steps)
         drmax_scaled = drmax / np.sqrt(P)
 
         # Large P rings need more steps to equilibrate from x0=0
@@ -91,7 +76,7 @@ def run_temperature(temp, P, Nsteps, drmax, burn_frac, N_indep, base_seed=937142
 
         sim.run()
 
-        # --- print acceptance ratio (accurate) ---
+        # print acceptance ratio
         acceptance_ratio = sim.total_accept / sim.total_moves
         print(f"    run {i+1}: acceptance ratio = {acceptance_ratio:.3f}")
 
@@ -146,7 +131,7 @@ T_fine       = 1.0 / (k_B * beta_fine)
 E_exact_fine = analytical_energy(beta_fine, omega)
 E_class_fine = k_B * T_fine              # classical equipartition: E = k_B T
 
-# ---- Figure 1: Energy vs beta*hbar*omega ----
+# Figure 1: Energy vs beta*hbar*omega 
 fig1, ax1 = plt.subplots(figsize=(9, 6))
 
 ax1.fill_between(bhw_list,
@@ -176,7 +161,7 @@ plt.tight_layout()
 plt.savefig("quantum_fig1_energy_vs_beta.png", dpi=200)
 print("\nSaved: quantum_fig1_energy_vs_beta.png")
 
-# ---- Figure 2: Energy vs temperature ----
+# Figure 2: Energy vs temperature 
 fig2, ax2 = plt.subplots(figsize=(9, 6))
 
 ax2.fill_between(T_list,
@@ -206,7 +191,7 @@ plt.tight_layout()
 plt.savefig("quantum_fig2_energy_vs_T.png", dpi=200)
 print("Saved: quantum_fig2_energy_vs_T.png")
 
-# ---- Zoomed temperature grid for Figure 2 ----
+# Zoomed temperature grid for Figure 2 
 
 T_zoom_min = 0.0
 T_zoom_max = max(T_list) * 1.05
@@ -216,7 +201,7 @@ beta_zoom = 1.0 / (k_B * T_zoom)
 E_exact_zoom = analytical_energy(beta_zoom, omega)
 E_class_zoom = k_B * T_zoom
 
-# ---- Figure 2: Energy vs temperature (zoomed to data region) ----
+# Figure 2: Energy vs temperature 
 
 fig2, ax2 = plt.subplots(figsize=(9, 6))
  
@@ -262,9 +247,6 @@ T_low       = T_list[-1]
 beta_low    = beta_list[-1]
 E_exact_low = analytical_energy(beta_low, omega)
 
-# Range of P values to test around the recommended value.
-# FIX: guard each term with max(4, ...) so we never pass P < 4,
-# even when P_ref is small and integer division produces 0 or 1.
 P_ref  = choose_P(beta_low, omega, P_per_unit)
 P_vals = sorted(set([
     4,
@@ -293,7 +275,7 @@ for P in P_vals:
 conv_mean = np.array(conv_mean)
 conv_err  = np.array(conv_err)
 
-# ---- Figure 3: Bead convergence ----
+# Figure 3: Bead convergence 
 fig3, ax3 = plt.subplots(figsize=(9, 6))
 
 ax3.fill_between(P_vals,

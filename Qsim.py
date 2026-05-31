@@ -2,8 +2,6 @@
 # -*- coding: utf-8 -*-
 
 """
-qsim.py
--------
 Quantum Path-Integral Monte Carlo simulation of a single particle
 in a one-dimensional harmonic trap, using the ring-polymer mapping
 of Feynman's path integral.
@@ -19,14 +17,14 @@ partition function of a ring polymer of P beads:
 where the effective classical potential is:
 
     U_eff = sum_{k=0}^{P-1} [
-              (1/2) * m * omega_P^2 * (x_{k+1} - x_k)^2   <- spring
-            + (1/P) * V(x_k)                                <- external
+              (1/2) * m * omega_P^2 * (x_{k+1} - x_k)^2   
+            + (1/P) * V(x_k)                                
             ]
 
 with omega_P = sqrt(P) / (beta * hbar)  (the inter-bead spring frequency)
 and periodic boundary conditions on the ring: x_P = x_0.
 
-The total energy is estimated using the THERMODYNAMIC (primitive) estimator:
+The total energy is estimated using the thermodynamic (primitive) estimator:
 
     <E> = P/(2*beta) - (1/2)*m*omega_P^2 * sum_k (x_{k+1}-x_k)^2
           + (1/P) * sum_k V(x_k)
@@ -42,31 +40,6 @@ from scipy.constants import hbar, Boltzmann as k_B
 
 
 class QuantumSimulation:
-    """
-    Ring-polymer Monte Carlo simulation for a single quantum particle
-    in a one-dimensional harmonic trap.
-
-    Parameters
-    ----------
-    mass : float
-        Particle mass in kg.
-    omega : float
-        Trap angular frequency in rad/s.
-    temp : float
-        Temperature in Kelvin.
-    P : int
-        Number of ring-polymer beads.
-    Nsteps : int
-        Number of MC steps (each step attempts to move all P beads once).
-    drmax : float
-        Maximum displacement per bead move in metres.
-    seed : int, optional
-        Random seed for reproducibility. Default is 937142.
-    printfreq : int, optional
-        Print/store energy every printfreq steps. Default is 100.
-    x0 : float, optional
-        Initial position of all beads in metres. Default is 0.0.
-    """
 
     def __init__(self, mass, omega, temp, P, Nsteps,
                  drmax, seed=937142, printfreq=100, x0=0.0):
@@ -78,7 +51,6 @@ class QuantumSimulation:
         self.beta  = 1.0 / (k_B * temp)
         self.P     = P
 
-        # Derived ring-polymer spring frequency
         # omega_P = sqrt(P) / (beta * hbar)
         self.omega_P = np.sqrt(P) / (self.beta * hbar)
 
@@ -119,42 +91,23 @@ class QuantumSimulation:
     # ------------------------------------------------------------------
 
     def _spring_energy(self, x):
-        """
-        Compute the total spring energy of the ring polymer.
-
-        U_spring = (1/2) * m * omega_P^2 * sum_k (x_{k+1} - x_k)^2
-        with x_P = x_0 (periodic).
-        """
+       
+        # Compute the total spring energy of the ring polymer.
         dx = np.roll(x, -1) - x          # x_{k+1} - x_k, periodic
         return 0.5 * self.k_spring * np.sum(dx ** 2)
 
     def _ext_energy(self, x):
-        """
-        Compute the external (harmonic trap) contribution to U_eff.
-
-        U_ext = (1/P) * sum_k V(x_k)
-              = (1/P) * sum_k (1/2) * m * omega^2 * x_k^2
-        """
+      
+        # Compute the external (harmonic trap) contribution to U_eff.
         return (1.0 / self.P) * 0.5 * self.mass * self.omega ** 2 * np.sum(x ** 2)
 
     def _eval_energies(self):
-        """
-        Compute U_spring, U_ext, U_eff and the thermodynamic energy
-        estimator from the current bead positions self.x.
-
-        Uses the THERMODYNAMIC (primitive) estimator:
-
-            E = P/(2*beta)
-              - (1/2)*m*omega_P^2 * sum_k (x_{k+1}-x_k)^2
-              + (1/P) * sum_k V(x_k)
-
-        which is exact in the limit P -> infinity.
-
-        Note: the first two terms individually grow as P but their
-        difference is O(hbar*omega). This cancellation is handled
-        correctly here because we compute spring_sum directly from
-        bead positions, not from an approximation.
-        """
+    
+        # Compute U_spring, U_ext, U_eff and the thermodynamic energy
+        # estimator from the current bead positions self.x.
+        # Uses the thermodynamic (primitive) estimator,
+        # which is exact in the limit P -> infinity.
+    
         self.U_spring = self._spring_energy(self.x)
         self.U_ext    = self._ext_energy(self.x)
         self.U_eff    = self.U_spring + self.U_ext
@@ -180,7 +133,7 @@ class QuantumSimulation:
 
         For each bead k, a trial displacement is drawn uniformly from
         [-drmax, drmax]. The move is accepted or rejected using the
-        Metropolis criterion applied to the CHANGE in U_eff.
+        Metropolis criterion applied to the change in U_eff.
 
         Only the two spring terms connecting bead k to its neighbours
         k-1 and k+1 change when bead k moves, plus the external term
@@ -188,10 +141,7 @@ class QuantumSimulation:
 
         During the first quarter of the run, drmax is adaptively tuned
         every 100 sweeps to keep the acceptance ratio near 0.4-0.6.
-
-        Returns
-        -------
-        None. Updates self.x, self.U_eff, self.E_thermo, self.accept.
+        
         """
         accept = 0
         x      = self.x          # reference, not a copy
@@ -237,20 +187,13 @@ class QuantumSimulation:
             elif ratio < 0.4:
                 self.drmax *= 0.9
 
-        # Recompute thermodynamic estimator from scratch (cheap for 1D)
+        # Recompute thermodynamic estimator from scratch 
         self._eval_energies()
 
     def run(self):
-        """
-        Run the full MC simulation for self.Nsteps sweeps.
+        
+        # Run the full MC simulation for self.Nsteps sweeps.
 
-        Stores (step, E_thermo) in self.E_history every self.printfreq
-        steps. Acceptance totals are tracked across all sweeps.
-
-        Returns
-        -------
-        None.
-        """
         self.E_history = []
 
         self.total_accept = 0
@@ -267,23 +210,10 @@ class QuantumSimulation:
                 self.E_history.append((self.step, self.E_thermo))
 
     def mean_energy(self, burn_frac=0.2):
-        """
-        Return the mean thermodynamic energy after discarding the first
-        burn_frac fraction of the stored history as equilibration.
-
-        Parameters
-        ----------
-        burn_frac : float, optional
-            Fraction of E_history to discard. Default is 0.2.
-
-        Returns
-        -------
-        mean_E : float
-            Mean energy in Joules.
-        std_E : float
-            Standard deviation of the stored energy values (NOT the
-            standard error - use this across independent runs instead).
-        """
+        
+        # Return the mean thermodynamic energy after discarding the first
+        # burn_frac fraction of the stored history as equilibration.
+      
         if len(self.E_history) == 0:
             raise RuntimeError("No energy history found. Did you call run()?")
 
@@ -295,48 +225,17 @@ class QuantumSimulation:
 
 
 def analytical_energy(beta, omega):
-    """
-    Exact thermal average energy of a quantum harmonic oscillator:
 
-        E(beta) = (hbar * omega / 2) * coth(beta * hbar * omega / 2)
+    # Exact thermal average energy of a quantum harmonic oscillator:
 
-    Parameters
-    ----------
-    beta : float or array-like
-        Inverse temperature in J^-1.
-    omega : float
-        Angular frequency in rad/s.
-
-    Returns
-    -------
-    E : float or np.ndarray
-        Energy in Joules.
-    """
     x = 0.5 * beta * hbar * omega
     return 0.5 * hbar * omega / np.tanh(x)
 
 
 def choose_P(beta, omega, P_per_unit=20):
-    """
-    Heuristic for the number of beads:
-
-        P = max(4, round(P_per_unit * beta * hbar * omega))
-
-    At high T (small beta), P can be small (even 1 gives classical limit).
-    At low T (large beta), P must be large to capture quantum effects.
-
-    Parameters
-    ----------
-    beta : float
-        Inverse temperature in J^-1.
-    omega : float
-        Angular frequency in rad/s.
-    P_per_unit : int, optional
-        Number of beads per unit of beta*hbar*omega. Default is 20.
-
-    Returns
-    -------
-    P : int
-    """
+    
+    # Number of beads
+    # P = max(4, round(P_per_unit * beta * hbar * omega))
+  
     P = int(round(P_per_unit * beta * hbar * omega))
     return max(4, P)
