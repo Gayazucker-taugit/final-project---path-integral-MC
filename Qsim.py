@@ -1,40 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-Quantum Path-Integral Monte Carlo simulation of a single particle
-in a one-dimensional harmonic trap, using the ring-polymer mapping
-of Feynman's path integral.
-
-The quantum partition function of a particle in a potential V(x) at
-inverse temperature beta = 1/(k_B T) is mapped onto the classical
-partition function of a ring polymer of P beads:
-
-    Z_P = (m P / (2 pi beta hbar^2))^(P/2)
-          x integral dx_0...dx_{P-1}
-          x exp( -beta * U_eff({x_k}) )
-
-where the effective classical potential is:
-
-    U_eff = sum_{k=0}^{P-1} [
-              (1/2) * m * omega_P^2 * (x_{k+1} - x_k)^2   
-            + (1/P) * V(x_k)                                
-            ]
-
-with omega_P = sqrt(P) / (beta * hbar)  (the inter-bead spring frequency)
-and periodic boundary conditions on the ring: x_P = x_0.
-
-The total energy is estimated using the thermodynamic (primitive) estimator:
-
-    <E> = P/(2*beta) - (1/2)*m*omega_P^2 * sum_k (x_{k+1}-x_k)^2
-          + (1/P) * sum_k V(x_k)
-
-For the harmonic trap V(x) = (1/2)*m*omega^2*x^2 the analytical result is:
-
-    E_exact(beta) = (hbar*omega/2) * coth(beta*hbar*omega/2)
-
-"""
-
 import numpy as np
 from scipy.constants import hbar, Boltzmann as k_B
 
@@ -128,21 +94,7 @@ class QuantumSimulation:
     # ------------------------------------------------------------------
 
     def MCstep(self):
-        """
-        Perform one MC sweep: attempt to move each of the P beads once.
-
-        For each bead k, a trial displacement is drawn uniformly from
-        [-drmax, drmax]. The move is accepted or rejected using the
-        Metropolis criterion applied to the change in U_eff.
-
-        Only the two spring terms connecting bead k to its neighbours
-        k-1 and k+1 change when bead k moves, plus the external term
-        for bead k. This allows an O(1) delta-U calculation per bead.
-
-        During the first quarter of the run, drmax is adaptively tuned
-        every 100 sweeps to keep the acceptance ratio near 0.4-0.6.
-        
-        """
+    
         accept = 0
         x      = self.x          # reference, not a copy
         P      = self.P
