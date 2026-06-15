@@ -2,7 +2,6 @@
 
 # Path Integral Monte Carlo: Quantum Harmonic Oscillator
 Gaya Zucker
-214193310
 ### Final Project Summary
 **System:** Single Ar atom in a 1D harmonic trap, $\hbar\omega = 50$ meV
 
